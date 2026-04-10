@@ -82,7 +82,7 @@ void printBoth(const String &message);
 void printlnBoth(const String &message);
 void read_encoder();
 void initialize_radio();
-void transmitRadioData(const String &data);
+void transmitRadioData();
 void motor_test();
 
 //================================================================================================================================================
@@ -231,7 +231,7 @@ void initialize_radio() {
 
 int16_t packetnum = 0; // For counting packets
 
-void transmitRadioData(const String &data) {
+void transmitRadioData() {
   if (!radioAvailable) {
     Serial.println("Nanofloat radio not available");
     return;
@@ -348,7 +348,7 @@ void loop() {
 
     // Transmit data via radio
     if (current_depth < 0.5) {
-      transmitRadioData(" ");
+      transmitRadioData();
     }
 
     if (!radioAvailable) {
