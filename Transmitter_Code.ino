@@ -43,8 +43,6 @@ volatile int delta = 0;
 volatile int a_prev = 0;
 
 // Competition status
-bool good_dive = true;
-bool dive_again = true;
 bool mission_complete = false;
 
 // Pressure sensor object (direct I2C)
