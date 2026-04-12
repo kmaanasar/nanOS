@@ -76,7 +76,7 @@ bool hold_depth(float target_depth_m, unsigned long duration_ms);
 bool vertical_profile(int profile_num);
 void competition_mission();
 void handleWifi();
-void read_encoder();
+void update_encoder();
 void initialize_radio();
 void transmitRadioData();
 void motor_test();
@@ -136,9 +136,9 @@ void setup() {
 
   pressureSensor.setModel(MS5837::MS5837_30BA);  // Bar30 explicit model set
   pressureSensor.setFluidDensity(997);            // Freshwater (use 1029 for seawater)
-  Serial.println("✓ Pressure sensor initialized!");
+  Serial.println("Pressure sensor initialized!");
 
-  // Read initial depth
+  // Read initial dept
   current_depth = read_depth();
   Serial.print("Current depth: ");
   Serial.print(current_depth);
@@ -270,7 +270,6 @@ void loop() {
   WifiClient client = server.available();
   if (client) {
     Serial.println("New client connected");
-    String currentLine = ""; 
   }
 
   // Auto-start competition mission after 10 seconds
