@@ -95,7 +95,6 @@ void setup() {
   pinMode(PIN_MOTOR_1,     OUTPUT);
   pinMode(PIN_MOTOR_2,     OUTPUT);
   pinMode(PIN_LIMIT_SW,    INPUT_PULLUP);
-  pinMode(PIN_LIMIT_SW_EN, OUTPUT);
   pinMode(PIN_RF95_RST,    OUTPUT);
 
   attachInterrupt(digitalPinToInterrupt(PIN_ENCODER_A), update_encoder, RISING);
