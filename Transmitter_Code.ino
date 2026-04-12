@@ -52,10 +52,8 @@ MS5837 pressureSensor;
 const int EEPROM_DEPTH_ADDR = 0;
 const int EEPROM_SIZE = 512;
 
-// Telnet server
-WiFiServer telnetServer(23);
-WiFiClient telnetClient;
-bool telnetConnected = false;
+// Wifi web server
+WiFiServer server(80);
 
 // RFM69 Radio
 RH_RF95 rf95(PIN_RF95_CS, PIN_RF95_INT);
@@ -75,7 +73,6 @@ bool surface();
 bool hold_depth(float target_depth_m, unsigned long duration_ms);
 bool vertical_profile(int profile_num);
 void competition_mission();
-void handleWifi();
 void update_encoder();
 void initialize_radio();
 void transmitRadioData();
@@ -101,7 +98,7 @@ void setup() {
   pinMode(PIN_LIMIT_SW_EN, OUTPUT);
   pinMode(PIN_RF95_RST,    OUTPUT);
 
-  attachInterrupt(digitalPinToInterrupt(PIN_ENCODER_A), updateEncoder, RISING);
+  attachInterrupt(digitalPinToInterrupt(PIN_ENCODER_A), update_encoder, RISING);
 
   // Enable limit switch
   digitalWrite(PIN_LIMIT_SW_EN, HIGH);
@@ -149,7 +146,7 @@ void setup() {
 
 
   WiFi.softAP(WIFI_SSID, WIFI_PASSWORD);
-  IPAddress IP = Wifi.softAPIP();
+  IPAddress IP = WiFi.softAPIP();
   Serial.print("AP IP address: ");
   Serial.println(IP);
   server.begin(); 
@@ -267,11 +264,55 @@ void update_encoder() {
 
 void loop() {
   // Handle wifi connections
-  WifiClient client = server.available();
-  if (client) {
-    Serial.println("New client connected");
-  }
+  WiFiClient client = server.available();
 
+  if (client) {
+    Serial.println("New web client connected.");
+    String currentLine = "";
+
+    while (client.connected()) {
+      if (client.available()) {
+        char c = client.read();
+        if (c == '\n') {
+          if (currentLine.length() == 0) {
+            // Send HTTP response
+            client.println("HTTP/1.1 200 OK");
+            client.println("Content-type:text/html");
+            client.println();
+
+            // HTML page with auto-refresh every 2 seconds
+            client.println("<!DOCTYPE html><html>");
+            client.println("<head>");
+            client.println("<meta http-equiv='refresh' content='2'>");
+            client.println("<title>NanoFloat Monitor</title>");
+            client.println("<style>");
+            client.println("body { font-family: monospace; background: #0b1628; color: #dbeafe; padding: 30px; }");
+            client.println("h1 { color: #2dd4bf; } .card { background: #1e3a5f; padding: 15px; margin: 10px 0; border-radius: 8px; }");
+            client.println(".val { font-size: 1.5em; color: #67e8f9; font-weight: bold; }");
+            client.println("</style></head><body>");
+            client.println("<h1>NanoFloat 1.2 — Live Monitor</h1>");
+
+            client.println("<div class='card'><p>Depth</p><p class='val'>" + String(current_depth, 2) + " m</p></div>");
+            client.println("<div class='card'><p>Temperature</p><p class='val'>" + String(pressureSensor.temperature(), 1) + " °C</p></div>");
+            client.println("<div class='card'><p>Pressure</p><p class='val'>" + String(pressureSensor.pressure(), 2) + " mbar</p></div>");
+            client.println("<div class='card'><p>Encoder Count</p><p class='val'>" + String(encoder_count) + "</p></div>");
+            client.println("<div class='card'><p>Mission Status</p><p class='val'>" + String(mission_complete ? "COMPLETE" : "IN PROGRESS") + "</p></div>");
+
+            client.println("</body></html>");
+            client.println();
+            break;
+          } else {
+            currentLine = "";
+          }
+        } else if (c != '\r') {
+          currentLine += c;
+        }
+      }
+    }
+
+    client.stop();
+    Serial.println("Web client disconnected.");
+  }
   // Auto-start competition mission after 10 seconds
   static bool mission_started = false;
   if (millis() > 10000 && !mission_started && !mission_complete) {
@@ -290,7 +331,7 @@ void loop() {
     }
 
     if (!radioAvailable) {
-      printlnBoth("Depth:" + String(current_depth, 2) + " (radio unavailable, switching to Wifi)");
+      Serial.println("Depth:" + String(current_depth, 2) + " (radio unavailable, switching to Wifi)");
     }
 
     Serial.println("Depth: ");
@@ -308,7 +349,7 @@ void loop() {
 
   if (digitalRead(PIN_LIMIT_SW) == HIGH) {
     piston_stop();
-    printlnBoth("WARNING! Limit switch has been switch off.");
+    Serial.println("WARNING! Limit switch has been switch off.");
   }
 
   delay(10);
@@ -545,33 +586,7 @@ void competition_mission() {
   Serial.println("╚════════════════════════════════════════════╝");
   Serial.println("");
 
-  Serial.println("\n[1/3] Attempting to communicate with station...");
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-  unsigned long startAttempt = millis();
-  bool station_connected = false;
-
-  while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < 15000) {
-    Serial.print(".");
-    delay(500);
-  }
-  Serial.println("");
-
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("Station communication successful!");
-    station_connected = true;
-  } else {
-    Serial.println("Station communication FAILED!");
-    Serial.println("Aborting mission - cannot proceed without station contact");
-    WiFi.mode(WIFI_AP);
-    return;
-  }
-
-  WiFi.mode(WIFI_AP);
-  delay(2000);
-
-  Serial.println("\n[2/3] Executing Vertical Profile 1...");
+  Serial.println("\n Executing Vertical Profiles");
   delay(2000);
   bool profile1_success = vertical_profile(1);
 
@@ -602,8 +617,6 @@ void competition_mission() {
   Serial.println("╚════════════════════════════════════════════╝");
 
   Serial.println("\n═══════════ MISSION SUMMARY ═══════════");
-  Serial.print("Station Communication: ");
-  Serial.println(station_connected ? "SUCCESS" : "FAILED");
   Serial.print("Vertical Profile 1: ");
   Serial.println(profile1_success ? "SUCCESS" : "FAILED");
   Serial.print("Vertical Profile 2: ");
