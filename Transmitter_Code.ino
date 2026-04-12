@@ -1,6 +1,7 @@
-#include <Arduino.h>
-#include <Wire.h>
 #include <WiFi.h>
+#include <WiFiClient.h>
+#include <WiFiAP.h>
+#include <Wire.h>
 #include "MS5837.h"
 #include <EEPROM.h>
 #include "config.h"
@@ -75,9 +76,7 @@ bool surface();
 bool hold_depth(float target_depth_m, unsigned long duration_ms);
 bool vertical_profile(int profile_num);
 void competition_mission();
-void handleTelnet();
-void printBoth(const String &message);
-void printlnBoth(const String &message);
+void handleWifi();
 void read_encoder();
 void initialize_radio();
 void transmitRadioData();
@@ -146,23 +145,17 @@ void setup() {
   Serial.print(current_depth);
   Serial.println(" m");
 
-  // Initialize WiFi in Access Point mode
-  Serial.println("\nStarting WiFi Access Point...");
-  WiFi.mode(WIFI_AP);
-  if (WiFi.softAP(WIFI_SSID, WIFI_PASSWORD, 1, 0, 1)) {
-    Serial.println("Access Point started successfully");
-    Serial.print("AP IP address: ");
-    Serial.println(WiFi.softAPIP());
-  } else {
-    Serial.println("Access Point failed to start");
-  }
+  Serial.println(); 
+  Serial.println("Configuring access point..."); 
 
-  // Start Telnet server
-  telnetServer.begin();
-  telnetServer.setNoDelay(true);
-  Serial.println("\nTelnet server started on port 23");
-  Serial.print("Connect via: telnet ");
-  Serial.println(WiFi.softAPIP());
+
+  WiFi.softAP(WIFI_SSID, WIFI_PASSWORD);
+  IPAddress IP = Wifi.softAPIP();
+  Serial.print("AP IP address: ");
+  Serial.println(IP);
+  server.begin(); 
+
+  Serial.println("\nAP configured successfully!");
 
   Serial.println("\n╔════════════════════════════════════════════╗");
   Serial.println("║          SYSTEM READY FOR MISSION         ║");
@@ -256,62 +249,7 @@ void transmitRadioData() {
   rf95.waitPacketSent();
 }
 
-// //================================================================================================================================================
-// //                                                              Telnet Helper Functions
 
-void printBoth(const String &message) {
-  Serial.print(message);
-  if (telnetConnected && telnetClient.connected()) {
-    telnetClient.print(message);
-  }
-}
-
-void printlnBoth(const String &message) {
-  Serial.println(message);
-  if (telnetConnected && telnetClient.connected()) {
-    telnetClient.println(message);
-  }
-}
-
-void handleTelnet() {
-  if (telnetServer.hasClient()) {
-    if (telnetClient && telnetClient.connected()) {
-      telnetClient.stop();
-    }
-    telnetClient = telnetServer.available();
-    telnetConnected = true;
-
-    telnetClient.println("\n╔════════════════════════════════════════════╗");
-    telnetClient.println("║    NanoFloat Telnet Console - Task 4.1    ║");
-    telnetClient.println("╚════════════════════════════════════════════╝\n");
-
-    telnetClient.print("Current depth: ");
-    telnetClient.print(current_depth, 2);
-    telnetClient.println(" m");
-
-    telnetClient.print("Temperature: ");
-    telnetClient.print(pressureSensor.temperature(), 1);
-    telnetClient.println(" C");
-
-    telnetClient.print("Pressure: ");
-    telnetClient.print(pressureSensor.pressure(), 2);
-    telnetClient.println(" mbar");
-
-    telnetClient.print("Encoder count: ");
-    telnetClient.println(encoder_count);
-
-    telnetClient.print("Mission status: ");
-    telnetClient.println(mission_complete ? "COMPLETE" : "IN PROGRESS");
-
-    telnetClient.println("\nMonitoring...\n");
-  }
-
-  if (telnetClient && !telnetClient.connected()) {
-    telnetClient.stop();
-    telnetConnected = false;
-    Serial.println("Telnet client disconnected");
-  }
-}
 
 // //================================================================================================================================================
 // //                                                              Encoder Updating
@@ -329,8 +267,12 @@ void updateEncoder() {
 // //                                                              Main Loop
 
 void loop() {
-  // Handle telnet connections
-  handleTelnet();
+  // Handle wifi connections
+  WifiClient client = server.available();
+  if (client) {
+    Serial.println("New client connected");
+    String currentLine = ""; 
+  }
 
   // Auto-start competition mission after 10 seconds
   static bool mission_started = false;
@@ -350,17 +292,17 @@ void loop() {
     }
 
     if (!radioAvailable) {
-      printlnBoth("Depth:" + String(current_depth, 2) + " (radio unavailable, switching to Telnet)");
+      printlnBoth("Depth:" + String(current_depth, 2) + " (radio unavailable, switching to Wifi)");
     }
 
-    printBoth("Depth: ");
-    printBoth(String(current_depth, 2));
-    printBoth(" m | Temp: ");
-    printBoth(String(pressureSensor.temperature(), 1));
-    printBoth(" C | Pressure: ");
-    printBoth(String(pressureSensor.pressure(), 2));
-    printBoth(" mbar | Encoder: ");
-    printlnBoth(String(encoder_count));
+    Serial.println("Depth: ");
+    Serial.println(String(current_depth, 2));
+    Serial.print(" m | Temp: ");
+    Serial.println(String(pressureSensor.temperature(), 1));
+    Serial.print(" C | Pressure: ");
+    Serial.println(String(pressureSensor.pressure(), 2));
+    Serial.print(" mbar | Encoder: ");
+    Serial.println(String(encoder_count));
 
     save_depth();
     lastRead = millis();
@@ -424,17 +366,17 @@ void load_depth() {
 // //                                                              Depth-Based Movement
 
 bool dive_to_depth(float target_depth_m) {
-  printBoth("Diving to ");
-  printBoth(String(target_depth_m));
-  printlnBoth(" m...");
+  Serial.println("Diving to ");
+  Serial.println(String(target_depth_m));
+  Serial.println(" m...");
 
   if (target_depth_m > MAX_DEPTH) {
-    printlnBoth("ERROR: Target depth exceeds maximum safe depth!");
+    Serial.println("ERROR: Target depth exceeds maximum safe depth!");
     return false;
   }
 
   if (target_depth_m < MIN_DEPTH) {
-    printlnBoth("ERROR: Target depth below minimum!");
+    Serial.println("ERROR: Target depth below minimum!");
     return false;
   }
 
@@ -444,7 +386,7 @@ bool dive_to_depth(float target_depth_m) {
   current_depth = read_depth();
 
   if (current_depth < target_depth) {
-    printlnBoth("Extending piston (diving deeper)...");
+    Serial.println("Extending piston (diving deeper)...");
     piston_out();
 
     while (current_depth < (target_depth - depth_tolerance)) {
@@ -452,24 +394,24 @@ bool dive_to_depth(float target_depth_m) {
 
       if (millis() - start_time > MAX_MOTOR_TIME) {
         piston_stop();
-        printlnBoth("ERROR: Motor timeout!");
+        Serial.println("ERROR: Motor timeout!");
         return false;
       }
 
       if (digitalRead(PIN_LIMIT_SW) == HIGH) {
         piston_stop();
-        printlnBoth("ERROR: Limit switch hit!");
+        Serial.println("ERROR: Limit switch hit!");
         return false;
       }
 
-      printBoth("Current depth: ");
-      printBoth(String(current_depth, 2));
-      printlnBoth(" m");
+      Serial.print("Current depth: ");
+      Serial.println(String(current_depth, 2));
+      Serial.println(" m");
       delay(500);
     }
 
   } else if (current_depth > target_depth) {
-    printlnBoth("Retracting piston (ascending)...");
+    Serial.println("Retracting piston (ascending)...");
     piston_in();
 
     while (current_depth > (target_depth + depth_tolerance)) {
@@ -477,43 +419,43 @@ bool dive_to_depth(float target_depth_m) {
 
       if (millis() - start_time > MAX_MOTOR_TIME) {
         piston_stop();
-        printlnBoth("ERROR: Motor timeout!");
+        Serial.println("ERROR: Motor timeout!");
         return false;
       }
 
       if (digitalRead(PIN_LIMIT_SW) == HIGH) {
         piston_stop();
-        printlnBoth("ERROR: Limit switch hit!");
+        Serial.println("ERROR: Limit switch hit!");
         return false;
       }
 
-      printBoth("Current depth: ");
-      printBoth(String(current_depth, 2));
-      printlnBoth(" m");
+      Serial.print("Current depth: ");
+      Serial.println(String(current_depth, 2));
+      Serial.println(" m");
       delay(500);
     }
   }
 
   piston_stop();
   current_depth = read_depth();
-  printBoth("✓ Reached target! Final depth: ");
-  printBoth(String(current_depth, 2));
-  printlnBoth(" m");
+  Serial.print("Reached target! Final depth: ");
+  Serial.println(String(current_depth, 2));
+  Serial.println(" m");
 
   return true;
 }
 
 bool surface() {
-  printlnBoth("Surfacing...");
+  Serial.println("Surfacing...");
   return dive_to_depth(0.0);
 }
 
 bool hold_depth(float target_depth_m, unsigned long duration_ms) {
-  printBoth("Holding depth ");
-  printBoth(String(target_depth_m));
-  printBoth(" m for ");
-  printBoth(String(duration_ms / 1000));
-  printlnBoth(" seconds...");
+  Serial.print("Holding depth ");
+  Serial.print(String(target_depth_m));
+  Serial.print(" m for ");
+  Serial.print(String(duration_ms / 1000));
+  Serial.println(" seconds...");
 
   unsigned long start_time = millis();
 
@@ -530,14 +472,14 @@ bool hold_depth(float target_depth_m, unsigned long duration_ms) {
       piston_stop();
     }
 
-    printBoth("Holding at ");
-    printBoth(String(current_depth, 2));
-    printlnBoth(" m");
+    Serial.print("Holding at ");
+    Serial.print(String(current_depth, 2));
+    Serial.println(" m");
     delay(1000);
   }
 
   piston_stop();
-  printlnBoth("Hold complete");
+  Serial.println("Hold complete");
   return true;
 }
 
@@ -545,67 +487,67 @@ bool hold_depth(float target_depth_m, unsigned long duration_ms) {
 // //                                                              Competition Functions
 
 bool vertical_profile(int profile_num) {
-  printlnBoth("");
-  printBoth("╔════════════════════════════════════════════╗");
-  printlnBoth("");
-  printBoth("║       VERTICAL PROFILE ");
-  printBoth(String(profile_num));
-  printlnBoth("                 ║");
-  printBoth("╚════════════════════════════════════════════╝");
-  printlnBoth("");
+  Serial.println("");
+  Serial.println("╔════════════════════════════════════════════╗");
+  Serial.println("");
+  Serial.print("║       VERTICAL PROFILE ");
+  Serial.print(String(profile_num));
+  Serial.println("                 ║");
+  Serial.println("╚═════════════════════════════════════════╗");
+  Serial.println("");
 
-  printlnBoth("\n[Phase 1] Diving to 2.5 meters...");
+  Serial.println("\n[Phase 1] Diving to 2.5 meters...");
   if (!dive_to_depth(2.5)) {
-    printlnBoth("ERROR: Failed to reach 2.5m!");
+    Serial.println("ERROR: Failed to reach 2.5m!");
     return false;
   }
-  printlnBoth("Reached 2.5m");
+  Serial.println("Reached 2.5m");
 
-  printlnBoth("\n[Phase 2] Holding at 2.5 meters for 30 seconds...");
+  Serial.println("\n[Phase 2] Holding at 2.5 meters for 30 seconds...");
   if (!hold_depth(2.5, 30000)) {
-    printlnBoth("ERROR: Failed to hold 2.5m!");
+    Serial.println("ERROR: Failed to hold 2.5m!");
     return false;
   }
-  printlnBoth("Held 2.5m for 30 seconds");
+  Serial.println("Held 2.5m for 30 seconds");
 
-  printlnBoth("\n[Phase 3] Ascending to 0.4 meters (40 cm)...");
+  Serial.println("\n[Phase 3] Ascending to 0.4 meters (40 cm)...");
   if (!dive_to_depth(0.4)) {
-    printlnBoth("ERROR: Failed to reach 0.4m!");
+    Serial.println("ERROR: Failed to reach 0.4m!");
     return false;
   }
-  printlnBoth("✓ Reached 0.4m");
+  Serial.println("Reached 0.4m");
 
-  printlnBoth("\n[Phase 4] Holding at 0.4 meters for 30 seconds...");
+  Serial.println("\n[Phase 4] Holding at 0.4 meters for 30 seconds...");
   if (!hold_depth(0.4, 30000)) {
-    printlnBoth("ERROR: Failed to hold 0.4m!");
+    Serial.println("ERROR: Failed to hold 0.4m!");
     return false;
   }
-  printlnBoth("Held 0.4m for 30 seconds");
+  Serial.println("Held 0.4m for 30 seconds");
 
   current_depth = read_depth();
   if (current_depth < 0.1) {
-    printlnBoth("WARNING: Float may have broken surface!");
+    Serial.println("WARNING: Float may have broken surface!");
   }
 
-  printlnBoth("");
-  printBoth("VERTICAL PROFILE ");
-  printBoth(String(profile_num));
-  printlnBoth(" COMPLETE");
-  printlnBoth("");
+  Serial.println("");
+  Serial.print("VERTICAL PROFILE ");
+  Serial.print(String(profile_num));
+  Serial.println(" COMPLETE");
+  Serial.println("");
 
   return true;
 }
 
 void competition_mission() {
-  printlnBoth("\n\n");
-  printlnBoth("╔════════════════════════════════════════════╗");
-  printlnBoth("║                                            ║");
-  printlnBoth("║   STARTING COMPETITION MISSION - TASK 4.1  ║");
-  printlnBoth("║                                            ║");
-  printlnBoth("╚════════════════════════════════════════════╝");
-  printlnBoth("");
+  Serial.println("\n\n");
+  Serial.println("╔════════════════════════════════════════════╗");
+  Serial.println("║                                            ║");
+  Serial.println("║   STARTING COMPETITION MISSION - TASK 4.1  ║");
+  Serial.println("║                                            ║");
+  Serial.println("╚════════════════════════════════════════════╝");
+  Serial.println("");
 
-  printlnBoth("\n[1/3] Attempting to communicate with station...");
+  Serial.println("\n[1/3] Attempting to communicate with station...");
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
@@ -613,17 +555,17 @@ void competition_mission() {
   bool station_connected = false;
 
   while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < 15000) {
-    printBoth(".");
+    Serial.print(".");
     delay(500);
   }
-  printlnBoth("");
+  Serial.println("");
 
   if (WiFi.status() == WL_CONNECTED) {
-    printlnBoth("Station communication successful!");
+    Serial.println("Station communication successful!");
     station_connected = true;
   } else {
-    printlnBoth("Station communication FAILED!");
-    printlnBoth("Aborting mission - cannot proceed without station contact");
+    Serial.println("Station communication FAILED!");
+    Serial.println("Aborting mission - cannot proceed without station contact");
     WiFi.mode(WIFI_AP);
     return;
   }
@@ -631,45 +573,45 @@ void competition_mission() {
   WiFi.mode(WIFI_AP);
   delay(2000);
 
-  printlnBoth("\n[2/3] Executing Vertical Profile 1...");
+  Serial.println("\n[2/3] Executing Vertical Profile 1...");
   delay(2000);
   bool profile1_success = vertical_profile(1);
 
   if (profile1_success) {
-    printlnBoth("\n VERTICAL PROFILE 1 COMPLETE");
+    Serial.println("\n VERTICAL PROFILE 1 COMPLETE");
   } else {
-    printlnBoth("\n VERTICAL PROFILE 1 FAILED");
+    Serial.println("\n VERTICAL PROFILE 1 FAILED");
   }
 
-  printlnBoth("\nWaiting 10 seconds before Profile 2...");
+  Serial.println("\nWaiting 10 seconds before Profile 2...");
   delay(10000);
 
-  printlnBoth("\n[3/3] Executing Vertical Profile 2...");
+  Serial.println("\n[3/3] Executing Vertical Profile 2...");
   delay(2000);
   bool profile2_success = vertical_profile(2);
 
   if (profile2_success) {
-    printlnBoth("\n VERTICAL PROFILE 2 COMPLETE");
+    Serial.println("\n VERTICAL PROFILE 2 COMPLETE");
   } else {
-    printlnBoth("\n VERTICAL PROFILE 2 FAILED");
+    Serial.println("\n VERTICAL PROFILE 2 FAILED");
   }
 
-  printlnBoth("\n\n");
-  printlnBoth("╔════════════════════════════════════════════╗");
-  printlnBoth("║                                            ║");
-  printlnBoth("║      COMPETITION MISSION COMPLETE!        ║");
-  printlnBoth("║                                            ║");
-  printlnBoth("╚════════════════════════════════════════════╝");
+  Serial.println("\n\n");
+  Serial.println("╔════════════════════════════════════════════╗");
+  Serial.println("║                                            ║");
+  Serial.println("║      COMPETITION MISSION COMPLETE!        ║");
+  Serial.println("║                                            ║");
+  Serial.println("╚════════════════════════════════════════════╝");
 
-  printlnBoth("\n═══════════ MISSION SUMMARY ═══════════");
-  printBoth("Station Communication: ");
-  printlnBoth(station_connected ? "SUCCESS" : "FAILED");
-  printBoth("Vertical Profile 1: ");
-  printlnBoth(profile1_success ? "SUCCESS" : "FAILED");
-  printBoth("Vertical Profile 2: ");
-  printlnBoth(profile2_success ? "SUCCESS" : "FAILED");
-  printlnBoth("════════════════════════════════════════");
-  printlnBoth("");
+  Serial.println("\n═══════════ MISSION SUMMARY ═══════════");
+  Serial.print("Station Communication: ");
+  Serial.println(station_connected ? "SUCCESS" : "FAILED");
+  Serial.print("Vertical Profile 1: ");
+  Serial.println(profile1_success ? "SUCCESS" : "FAILED");
+  Serial.print("Vertical Profile 2: ");
+  Serial.println(profile2_success ? "SUCCESS" : "FAILED");
+  Serial.println("════════════════════════════════════════");
+  Serial.println("");
 
   mission_complete = true;
 }
