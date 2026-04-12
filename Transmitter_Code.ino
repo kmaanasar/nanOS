@@ -138,7 +138,7 @@ void setup() {
 
   pressureSensor.setModel(MS5837::MS5837_30BA);  // Bar30 explicit model set
   pressureSensor.setFluidDensity(997);            // Freshwater (use 1029 for seawater)
-  Serial.println("✓ Pressure sensor initialized!");
+  Serial.println("Pressure sensor initialized!");
 
   // Read initial depth
   current_depth = read_depth();
@@ -150,17 +150,17 @@ void setup() {
   Serial.println("\nStarting WiFi Access Point...");
   WiFi.mode(WIFI_AP);
   if (WiFi.softAP(WIFI_SSID, WIFI_PASSWORD, 1, 0, 1)) {
-    Serial.println("✓ Access Point started successfully");
+    Serial.println("Access Point started successfully");
     Serial.print("AP IP address: ");
     Serial.println(WiFi.softAPIP());
   } else {
-    Serial.println("✗ Access Point failed to start");
+    Serial.println("Access Point failed to start");
   }
 
   // Start Telnet server
   telnetServer.begin();
   telnetServer.setNoDelay(true);
-  Serial.println("\n✓ Telnet server started on port 23");
+  Serial.println("\nTelnet server started on port 23");
   Serial.print("Connect via: telnet ");
   Serial.println(WiFi.softAPIP());
 
@@ -537,7 +537,7 @@ bool hold_depth(float target_depth_m, unsigned long duration_ms) {
   }
 
   piston_stop();
-  printlnBoth("✓ Hold complete");
+  printlnBoth("Hold complete");
   return true;
 }
 
@@ -556,39 +556,39 @@ bool vertical_profile(int profile_num) {
 
   printlnBoth("\n[Phase 1] Diving to 2.5 meters...");
   if (!dive_to_depth(2.5)) {
-    printlnBoth("✗ ERROR: Failed to reach 2.5m!");
+    printlnBoth("ERROR: Failed to reach 2.5m!");
     return false;
   }
-  printlnBoth("✓ Reached 2.5m");
+  printlnBoth("Reached 2.5m");
 
   printlnBoth("\n[Phase 2] Holding at 2.5 meters for 30 seconds...");
   if (!hold_depth(2.5, 30000)) {
-    printlnBoth("✗ ERROR: Failed to hold 2.5m!");
+    printlnBoth("ERROR: Failed to hold 2.5m!");
     return false;
   }
-  printlnBoth("✓ Held 2.5m for 30 seconds");
+  printlnBoth("Held 2.5m for 30 seconds");
 
   printlnBoth("\n[Phase 3] Ascending to 0.4 meters (40 cm)...");
   if (!dive_to_depth(0.4)) {
-    printlnBoth("✗ ERROR: Failed to reach 0.4m!");
+    printlnBoth("ERROR: Failed to reach 0.4m!");
     return false;
   }
   printlnBoth("✓ Reached 0.4m");
 
   printlnBoth("\n[Phase 4] Holding at 0.4 meters for 30 seconds...");
   if (!hold_depth(0.4, 30000)) {
-    printlnBoth("✗ ERROR: Failed to hold 0.4m!");
+    printlnBoth("ERROR: Failed to hold 0.4m!");
     return false;
   }
-  printlnBoth("✓ Held 0.4m for 30 seconds");
+  printlnBoth("Held 0.4m for 30 seconds");
 
   current_depth = read_depth();
   if (current_depth < 0.1) {
-    printlnBoth("⚠ WARNING: Float may have broken surface!");
+    printlnBoth("WARNING: Float may have broken surface!");
   }
 
   printlnBoth("");
-  printBoth("✓ VERTICAL PROFILE ");
+  printBoth("VERTICAL PROFILE ");
   printBoth(String(profile_num));
   printlnBoth(" COMPLETE");
   printlnBoth("");
@@ -619,10 +619,10 @@ void competition_mission() {
   printlnBoth("");
 
   if (WiFi.status() == WL_CONNECTED) {
-    printlnBoth("✓ Station communication successful!");
+    printlnBoth("Station communication successful!");
     station_connected = true;
   } else {
-    printlnBoth("✗ Station communication FAILED!");
+    printlnBoth("Station communication FAILED!");
     printlnBoth("Aborting mission - cannot proceed without station contact");
     WiFi.mode(WIFI_AP);
     return;
@@ -636,9 +636,9 @@ void competition_mission() {
   bool profile1_success = vertical_profile(1);
 
   if (profile1_success) {
-    printlnBoth("\n✓ VERTICAL PROFILE 1 COMPLETE");
+    printlnBoth("\n VERTICAL PROFILE 1 COMPLETE");
   } else {
-    printlnBoth("\n✗ VERTICAL PROFILE 1 FAILED");
+    printlnBoth("\n VERTICAL PROFILE 1 FAILED");
   }
 
   printlnBoth("\nWaiting 10 seconds before Profile 2...");
@@ -649,9 +649,9 @@ void competition_mission() {
   bool profile2_success = vertical_profile(2);
 
   if (profile2_success) {
-    printlnBoth("\n✓ VERTICAL PROFILE 2 COMPLETE");
+    printlnBoth("\n VERTICAL PROFILE 2 COMPLETE");
   } else {
-    printlnBoth("\n✗ VERTICAL PROFILE 2 FAILED");
+    printlnBoth("\n VERTICAL PROFILE 2 FAILED");
   }
 
   printlnBoth("\n\n");
@@ -663,11 +663,11 @@ void competition_mission() {
 
   printlnBoth("\n═══════════ MISSION SUMMARY ═══════════");
   printBoth("Station Communication: ");
-  printlnBoth(station_connected ? "✓ SUCCESS" : "✗ FAILED");
+  printlnBoth(station_connected ? "SUCCESS" : "FAILED");
   printBoth("Vertical Profile 1: ");
-  printlnBoth(profile1_success ? "✓ SUCCESS" : "✗ FAILED");
+  printlnBoth(profile1_success ? "SUCCESS" : "FAILED");
   printBoth("Vertical Profile 2: ");
-  printlnBoth(profile2_success ? "✓ SUCCESS" : "✗ FAILED");
+  printlnBoth(profile2_success ? "SUCCESS" : "FAILED");
   printlnBoth("════════════════════════════════════════");
   printlnBoth("");
 
