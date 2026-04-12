@@ -149,8 +149,11 @@ void setup() {
   IPAddress IP = WiFi.softAPIP();
   Serial.print("AP IP address: ");
   Serial.println(IP);
-  server.begin(); 
 
+  server.begin(); 
+  Serial.println("Web server started");
+  Serial.print("Open browser to: http://192.168.4.1");
+  
   Serial.println("\nAP configured successfully!");
 
   Serial.println("\n╔════════════════════════════════════════════╗");
