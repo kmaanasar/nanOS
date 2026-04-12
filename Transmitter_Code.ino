@@ -19,11 +19,10 @@ const int PIN_ENCODER_A   = D0;   // Encoder A phase
 const int PIN_ENCODER_B   = D1;   // Encoder B phase
 const int PIN_MOTOR_1     = D2;   // Motor Input 1
 const int PIN_MOTOR_2     = D3;   // Motor Input 2
-const int PIN_RF95_CS     = D6;   // RFM69 Chip Select
-const int PIN_RF95_INT    = D7;   // RFM69 Interrupt
-const int PIN_RF95_RST    = D8;   // RFM69 Reset
-const int PIN_LIMIT_SW    = D9;   // Limit Switch input
-const int PIN_LIMIT_SW_EN = D10;  // Limit Switch Enable
+const int PIN_LIMIT_SW    = D7;   // Limit Switch Input 
+const int PIN_RF95_SCK    = D8;   // RFM95 Clock
+const int PIN_RF95_MISO    = D9;  // RFM95 Serial Out 
+const int PIN_RF95_MOSI = D10;  // RFM95 Serial In 
 
 //================================================================================================================================================
 //                                                              Global Variables
@@ -137,7 +136,7 @@ void setup() {
 
   pressureSensor.setModel(MS5837::MS5837_30BA);  // Bar30 explicit model set
   pressureSensor.setFluidDensity(997);            // Freshwater (use 1029 for seawater)
-  Serial.println("Pressure sensor initialized!");
+  Serial.println("✓ Pressure sensor initialized!");
 
   // Read initial depth
   current_depth = read_depth();
@@ -185,7 +184,7 @@ void setup() {
 }
 
 // //================================================================================================================================================
-// //                                                              RFM69 Radio Functions
+// //                                                              RFM95 Radio Functions
 
 void initialize_radio() {
   
@@ -207,11 +206,11 @@ void initialize_radio() {
   }
   Serial.println("Nanofloat radio init OK!");
 
-  if(!rf95.setFrequency(RF95_FREQ)) {
-    Serial.println("setFrequency failed");
-    radioAvailable = false;
-    return;
-  }
+  // if(!rf95.setFrequency(RF95_FREQ)) {
+  //   Serial.println("setFrequency failed");
+  //   radioAvailable = false;
+  //   return;
+  // }
   Serial.print("Set Freq to: ");
   Serial.println(RF95_FREQ);
 
@@ -254,7 +253,7 @@ void transmitRadioData() {
 // //================================================================================================================================================
 // //                                                              Encoder Updating
 
-void updateEncoder() {
+void update_encoder() {
   // No need for read encoder as iterrupt will handle encoder count automatically.
   if (digitalRead(PIN_ENCODER_A) > digitalRead(PIN_ENCODER_B)) {
     encoder_count++;
